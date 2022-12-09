@@ -1,55 +1,118 @@
 ---
-title: "Activity: Gene Expression"
-author: "YOUR NAME HERE"
-output: html_notebook
+title: 'Activity: Gene Expression'
+author: "Maggie Linn"
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r, message = F, warning = F}
 # include important libraries 
-
+library(mosaic)
+library(tidyverse)
+library(lubridate)
+library(dplyr)
+library(dcData)
 ```
 
+```{r}
+data("NCI60")
+Narrow <-
+  NCI60 %>%
+  tidyr::pivot_longer(cols = -Probe, names_to = "cellLine", values_to = "expression")
+
+CellTypes <-
+  NCI60cells %>%
+  select(cellLine, tissue) %>%
+  mutate(cellLine = gsub(pattern = "\\:", replacement = ".", x = as.character(cellLine)))
+
+Narrow <- 
+  Narrow %>%
+  inner_join(CellTypes)
+
+Probe_TOP3A <-
+  Narrow %>%
+  filter(Probe == "TOP3A")
+
+SummaryStats <-
+  Probe_TOP3A %>%
+  group_by(tissue) %>%
+  summarise(mn_expr = exp(mean(expression, na.rm = TRUE)))
+```
 
 
 ## Recreate Figure 18.1 
 
 ```{r}
-
-
+SummaryStats %>% 
+  ggplot(aes(x = tissue, y = mn_expr)) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
 ```
 
 
 ##  Recreate Figure 18.2
 
 ```{r}
-
-
+Probe_TOP3A %>% 
+ggplot(aes(x = tissue, y = exp(expression))) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
 ```
 
 
 ## Critique of Figure 18.1
 
-My answer here...... 
 
 
 ## Recreate Figure 18.3
 
 ```{r}
-
-
+SummaryStats %>% 
+  ggplot(aes(x = tissue, y = exp(mn_expr))) +
+  geom_bar(stat = "identity", fill = "gray", color = NA) +
+  geom_point(data = Probe_TOP3A, aes(x = tissue, y = exp(expression))) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
 ```
 
 ##  Recreate Figure 18.4
 
 ```{r}
-
-
+SummaryStats <-  
+      SummaryStats %>%  
+      mutate(tissue = reorder(tissue, mn_expr)) 
+SummaryStats <-
+  Probe_TOP3A %>%
+  group_by(tissue) %>%
+  summarise(mn_expr = mean(expression,  na.rm = TRUE),
+            se = sd(expression, na.rm = TRUE) / sqrt(n())) 
+SummaryStats <- 
+  SummaryStats %>%
+  mutate(top = mn_expr + 2 * se,
+         bottom = mn_expr - 2 * se) 
+SummaryStats %>%
+  ggplot(aes(x = tissue, y = exp(mn_expr))) +
+  geom_bar(stat = "identity", alpha = 0.2) +
+  geom_errorbar(aes(x = tissue, 
+                    ymax = exp(top), 
+                    ymin = exp(bottom)), width = 0.5) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
 ```
 
 ##  Recreate Figure 18.5
 
 ```{r}
-
+SummaryStats <- 
+  SummaryStats %>%
+  mutate(top = mn_expr + 2 * se,
+         bottom = mn_expr - 2 * se) 
+SummaryStats %>% 
+  ggplot(aes(x = tissue, y = exp(mn_expr))) +
+  geom_point(data = Probe_TOP3A, aes(x = tissue, y = exp(expression))) + 
+    geom_errorbar(aes(x = tissue, 
+                    ymax = exp(top), 
+                    ymin = exp(bottom)), width = 0.5) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
 
 ```
 
@@ -57,7 +120,20 @@ My answer here......
 ## Your turn: Pick your own probe and make a figure like that of Figure 18.5.
 
 ```{r}
-
+Probe_ZZZ3 <-
+  Narrow %>%
+  filter(Probe == "ZZZ3")
+SummaryStats <- 
+  SummaryStats %>%
+  mutate(top = mn_expr + 2 * se,
+         bottom = mn_expr - 2 * se) 
+SummaryStats %>% 
+  ggplot(aes(x = tissue, y = exp(mn_expr))) +
+  geom_point(data = Probe_ZZZ3, aes(x = tissue, y = exp(expression))) + 
+    geom_errorbar(aes(x = tissue, 
+                    ymax = exp(top), 
+                    ymin = exp(bottom)), width = 0.5) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
 
 ```
 
@@ -68,24 +144,53 @@ My answer here......
 r2 <- function(data) {
   mosaic::rsquared(lm(data$expression ~ data$tissue))
 }
-
-
-
-
+ProbeR2 <- 
+  Narrow %>% 
+  group_by(Probe) %>%
+  dplyr::do(probe_rsq = r2(.)) %>%
+  mutate(r2 = unlist(probe_rsq))
+Actual <-
+  ProbeR2 %>%
+  arrange(desc(r2)) %>%
+  head(30) 
+Actual %>%
+  ggplot(aes(x = reorder(Probe, desc(r2)), y = r2)) +
+  geom_point() + 
+  xlab("Probe") + 
+  ylab("R-squared") + 
+  ggtitle("Probes with large R-squared for expression level explained by tissue type") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 ## Your turn: Choose one of the probes with high $R^2$. Plot out expression versus tissue type, just as Figure 18.5 shows it for TOP3A
 
 ```{r}
-
+ProbeR2 <- 
+  Narrow %>% 
+  group_by(Probe) %>%
+  dplyr::do(probe_rsq = r2(.)) %>%
+  mutate(r2 = unlist(probe_rsq))
+Probe_CD53 <-
+  Narrow %>%
+  filter(Probe == "CD53")
+SummaryStats <- 
+  SummaryStats %>%
+  mutate(top = mn_expr + 2 * se,
+         bottom = mn_expr - 2 * se) 
+SummaryStats %>% 
+  ggplot(aes(x = tissue, y = exp(mn_expr))) +
+  geom_point(data = Probe_CD53, aes(x = tissue, y = exp(expression))) + 
+    geom_errorbar(aes(x = tissue, 
+                    ymax = exp(top), 
+                    ymin = exp(bottom)), width = 0.5) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
 
 ```
 
 
 #### Do you see a qualitative difference between the graph of your high $R^2$ probe and Figure 18.5?
 
-My answer here.... 
-
+There is a qualitative difference between the graphs because the error bar is much higher on figure 18.5 than the one I created with the probe with a high R^2 value.
 
 ## Recreate Figure 18.7 
 
@@ -93,7 +198,18 @@ My answer here....
 
 ```{r}
 
-
+NullR2 <-
+  Narrow %>%
+  group_by(Probe) %>%
+  mutate(expression = mosaic::shuffle(expression)) %>%
+  group_by(Probe) %>%
+  do(r2 = r2(.)) %>%
+  mutate(r2 = unlist(r2))
+ProbeR2 %>%
+  ggplot(aes(x = r2)) + 
+  geom_density(fill = "gray30", color = NA) +
+  geom_density(data = NullR2, aes(x = r2), 
+               fill = "gray80", alpha = .75, color = NA)
 
 ```
 
@@ -102,7 +218,19 @@ My answer here....
 
 ```{r}
 
+Null <-
+  NullR2 %>% 
+  arrange(desc(r2)) %>%
+  head(30) 
 
+# append the 30 highest `Null` values to the `Actual` data
+Actual$null <- Null$r2
+
+Actual %>%
+  ggplot(aes(x = reorder(Probe, desc(r2)), y = r2)) +
+  geom_point() + 
+  geom_point(aes(y = null), color = "gray50") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
 
